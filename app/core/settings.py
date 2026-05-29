@@ -39,3 +39,10 @@ SONY_TV_PSK: str = os.getenv("SONY_TV_PSK", "0000")
 # ── Voice ───────────────────────────────────────────────
 VOICE_ENABLED: bool = os.getenv("VOICE_ENABLED", "false").lower() == "true"
 WAKE_WORD: str = os.getenv("WAKE_WORD", "jarvis")
+
+# ── YouTube Music ────────────────────────────────────────
+YOUTUBE_API_KEY: str = os.getenv("YOUTUBE_API_KEY", "")
+
+# ── Weather ──────────────────────────────────────────────
+WEATHER_API_KEY: str = os.getenv("WEATHER_API_KEY", "")
+WEATHER_CITY: str = os.getenv("WEATHER_CITY", "London")

@@ -75,6 +75,15 @@ def init_database() -> None:
             success     INTEGER DEFAULT 1,
             created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS alarms (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            label       TEXT NOT NULL DEFAULT 'Alarm',
+            time        TEXT NOT NULL,
+            repeat_days TEXT DEFAULT '',
+            enabled     INTEGER DEFAULT 1,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     """)
 
     conn.commit()

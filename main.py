@@ -8,15 +8,22 @@ import uvicorn
 from app.api.routes import router
 from app.core import settings
 from app.memory.database import init_database
+from app.services.alarm_checker import alarm_check_loop
+from app.services.reminder_checker import reminder_check_loop
 from app.websocket.manager import event_broadcaster
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     init_database()
-    task = asyncio.create_task(event_broadcaster())
+    tasks = [
+        asyncio.create_task(event_broadcaster()),
+        asyncio.create_task(reminder_check_loop()),
+        asyncio.create_task(alarm_check_loop()),
+    ]
     yield
-    task.cancel()
+    for t in tasks:
+        t.cancel()
 
 
 app = FastAPI(

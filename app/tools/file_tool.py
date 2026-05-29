@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
 
+from app.core import settings
 
-ALLOWED_ROOT = Path("generated_sites").resolve()
+
+ALLOWED_ROOT = Path(settings.GENERATED_SITES_DIR).resolve()
 
 
 class FileTool:

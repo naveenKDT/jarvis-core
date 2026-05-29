@@ -3,23 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.api.routes import router
-from app.core.settings import (
-    JARVIS_CORS_ORIGINS,
-    JARVIS_DEBUG,
-    JARVIS_HOST,
-    JARVIS_PORT,
-)
+from app.core import settings
 
 app = FastAPI(
     title="JARVIS CORE",
     version="1.0",
-    docs_url="/docs" if JARVIS_DEBUG else None,
-    redoc_url="/redoc" if JARVIS_DEBUG else None,
+    docs_url="/docs" if settings.APP_RELOAD else None,
+    redoc_url="/redoc" if settings.APP_RELOAD else None,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=JARVIS_CORS_ORIGINS,
+    allow_origins=settings.JARVIS_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
@@ -38,7 +33,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host=JARVIS_HOST,
-        port=JARVIS_PORT,
-        reload=JARVIS_DEBUG,
+        host=settings.APP_HOST,
+        port=settings.APP_PORT,
+        reload=settings.APP_RELOAD,
     )

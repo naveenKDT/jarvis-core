@@ -1,11 +1,16 @@
-import requests
 import time
+
+import requests
+
+from app.core import settings
 
 
 class LocalLLM:
 
     def __init__(self):
-        self.url = "http://localhost:11434/api/chat"
+        self.url = f"{settings.OLLAMA_BASE_URL}/api/chat"
+        self.model = settings.OLLAMA_MODEL
+        self.timeout = settings.OLLAMA_TIMEOUT
 
     def ask(self, prompt):
 
@@ -17,7 +22,7 @@ class LocalLLM:
         start_time = time.time()
 
         payload = {
-            "model": "llama3.1:8b",
+            "model": self.model,
             "messages": [
                 {
                     "role": "user",
@@ -30,7 +35,7 @@ class LocalLLM:
         response = requests.post(
             self.url,
             json=payload,
-            timeout=300
+            timeout=self.timeout
         )
 
         response.raise_for_status()

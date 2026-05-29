@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from app.core import settings
 from app.core.llm import LocalLLM
 from app.core.logger import Logger
 
@@ -14,7 +15,7 @@ class WebsiteTool:
 
         Logger.step("Creating project folder")
 
-        project_folder = Path("generated_sites/JarvisWebsite")
+        project_folder = Path(settings.GENERATED_SITES_DIR) / "JarvisWebsite"
 
         project_folder.mkdir(
             parents=True,

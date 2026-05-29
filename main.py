@@ -1,23 +1,38 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.api.routes import router
 from app.core import settings
+from app.memory.database import init_database
+from app.websocket.manager import event_broadcaster
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    init_database()
+    task = asyncio.create_task(event_broadcaster())
+    yield
+    task.cancel()
+
 
 app = FastAPI(
     title="JARVIS CORE",
-    version="1.0",
-    docs_url="/docs" if settings.APP_RELOAD else None,
-    redoc_url="/redoc" if settings.APP_RELOAD else None,
+    version="2.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.JARVIS_CORS_ORIGINS,
+    allow_origins=settings.JARVIS_CORS_ORIGINS or ["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(router)
@@ -27,8 +42,14 @@ if __name__ == "__main__":
 
     print("")
     print("===================================")
-    print("        JARVIS CORE ONLINE")
+    print("        JARVIS CORE v2.0")
+    print("   AI Operating System Online")
     print("===================================")
+    print("")
+    print(f"  Server:  http://{settings.APP_HOST}:{settings.APP_PORT}")
+    print(f"  LLM:     {settings.OLLAMA_MODEL} @ {settings.OLLAMA_BASE_URL}")
+    print(f"  Voice:   {'Enabled' if settings.VOICE_ENABLED else 'Disabled'}")
+    print(f"  Docs:    http://{settings.APP_HOST}:{settings.APP_PORT}/docs")
     print("")
 
     uvicorn.run(

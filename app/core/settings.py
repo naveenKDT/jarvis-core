@@ -31,3 +31,11 @@ GENERATED_SITES_DIR: str = os.getenv("GENERATED_SITES_DIR", "generated_sites")
 
 # ── Logging ─────────────────────────────────────────────
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
+# ── Sony Bravia TV ──────────────────────────────────────
+SONY_TV_IP: str = os.getenv("SONY_TV_IP", "192.168.1.100")
+SONY_TV_PSK: str = os.getenv("SONY_TV_PSK", "0000")
+
+# ── Voice ───────────────────────────────────────────────
+VOICE_ENABLED: bool = os.getenv("VOICE_ENABLED", "false").lower() == "true"
+WAKE_WORD: str = os.getenv("WAKE_WORD", "jarvis")

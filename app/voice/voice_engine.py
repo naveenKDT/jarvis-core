@@ -1,85 +1,65 @@
-import speech_recognition as sr
-import pyttsx3
+import asyncio
 
-from app.core.brain import JarvisBrain
+from app.core.events import event_bus
+from app.core.logger import Logger
+from app.voice.speech_to_text import SpeechToText
+from app.voice.text_to_speech import TextToSpeech
+from app.voice.wake_word import WakeWordDetector
 
 
-class JarvisVoiceAgent:
+class VoiceEngine:
 
-    def __init__(self):
+    def __init__(self) -> None:
+        self.stt = SpeechToText()
+        self.tts = TextToSpeech()
+        self.wake_detector = WakeWordDetector()
+        self._running = False
+        self._command_callback = None
 
-        self.recognizer = sr.Recognizer()
+    def set_command_callback(self, callback) -> None:
+        self._command_callback = callback
 
-        self.microphone = sr.Microphone()
+    def speak(self, text: str) -> None:
+        self.tts.speak(text)
 
-        self.engine = pyttsx3.init()
+    def listen(self) -> str | None:
+        return self.stt.listen()
 
-        self.brain = JarvisBrain()
+    async def start(self) -> None:
+        self._running = True
+        self.speak("Jarvis online. Awaiting your command, sir.")
 
-        self.setup_voice()
+        await event_bus.emit_simple(
+            "voice_started", agent="voice",
+            message="Voice engine started",
+        )
 
-    def setup_voice(self):
+        while self._running:
+            Logger.info("Waiting for wake word...")
+            if self.wake_detector.wait_for_wake_word(timeout=0):
+                await event_bus.emit_simple(
+                    "wake_word_detected", agent="voice",
+                    message="Wake word detected",
+                )
+                self.speak("Yes, sir?")
 
-        voices = self.engine.getProperty("voices")
+                command = self.stt.listen()
+                if command:
+                    await event_bus.emit_simple(
+                        "voice_command", agent="voice",
+                        message=f"Command: {command}",
+                        data={"command": command},
+                    )
 
-        if voices:
-            self.engine.setProperty("voice", voices[0].id)
+                    if self._command_callback:
+                        result = await self._command_callback(command)
+                        response = result.get("response", "Command processed.")
+                        self.speak(response)
+                    else:
+                        self.speak("I heard you, but I have no handler configured.")
 
-        self.engine.setProperty("rate", 175)
+            await asyncio.sleep(0.1)
 
-        self.engine.setProperty("volume", 1)
-
-    def speak(self, text):
-
-        print(f"\nJARVIS: {text}\n")
-
-        self.engine.say(text)
-
-        self.engine.runAndWait()
-
-    async def process_command(self, command):
-
-        result = await self.brain.think(command)
-
-        response = result["response"]
-
-        self.speak(response)
-
-    async def listen(self):
-
-        with self.microphone as source:
-
-            print("Listening...")
-
-            self.recognizer.adjust_for_ambient_noise(
-                source,
-                duration=1
-            )
-
-            audio = self.recognizer.listen(source)
-
-        try:
-
-            command = self.recognizer.recognize_google(audio)
-
-            print(f"\nYOU: {command}\n")
-
-            await self.process_command(command)
-
-        except sr.UnknownValueError:
-
-            self.speak("I did not understand that.")
-
-        except Exception as ex:
-
-            print(ex)
-
-            self.speak("An error occurred.")
-
-    async def start(self):
-
-        self.speak("Jarvis online.")
-
-        while True:
-
-            await self.listen()
+    def stop(self) -> None:
+        self._running = False
+        Logger.info("Voice engine stopped")

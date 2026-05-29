@@ -17,9 +17,24 @@ services:
       - .env
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - jarvis_data:/app/data
     depends_on:
       - ollama
     restart: unless-stopped
 
+  frontend:
+    build: ./frontend
+    container_name: jarvis-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:${APP_PORT:-8000}
+      - REACT_APP_WS_URL=ws://localhost:${APP_PORT:-8000}/ws
+    depends_on:
+      - jarvis
+    restart: unless-stopped
+
 volumes:
   ollama_data:
+  jarvis_data:

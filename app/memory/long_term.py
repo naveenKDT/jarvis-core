@@ -225,6 +225,50 @@ def get_tasks(status: str | None = None) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# ── Alarms ───────────────────────────────────────────────
+
+def create_alarm(label: str, time: str, repeat_days: str = "") -> int:
+    conn = get_connection()
+    cursor = conn.execute(
+        "INSERT INTO alarms (label, time, repeat_days) VALUES (?, ?, ?)",
+        (label, time, repeat_days),
+    )
+    conn.commit()
+    row_id = cursor.lastrowid
+    conn.close()
+    return row_id
+
+
+def get_alarms(enabled_only: bool = True) -> list[dict]:
+    conn = get_connection()
+    query = "SELECT * FROM alarms"
+    if enabled_only:
+        query += " WHERE enabled = 1"
+    query += " ORDER BY time ASC"
+    rows = conn.execute(query).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_alarm(alarm_id: int) -> bool:
+    conn = get_connection()
+    conn.execute("DELETE FROM alarms WHERE id = ?", (alarm_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def toggle_alarm(alarm_id: int, enabled: bool) -> bool:
+    conn = get_connection()
+    conn.execute(
+        "UPDATE alarms SET enabled = ? WHERE id = ?",
+        (int(enabled), alarm_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
 # ── Agent History ────────────────────────────────────────
 
 def log_agent_action(

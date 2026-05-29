@@ -5,6 +5,11 @@ import AgentTerminal from './components/AgentTerminal';
 import CommandOrb from './components/CommandOrb';
 import SystemArc from './components/SystemArc';
 import LogStream from './components/LogStream';
+import MusicPlayer from './components/MusicPlayer';
+import TVRemote from './components/TVRemote';
+import WeatherWidget from './components/WeatherWidget';
+import AlarmPanel from './components/AlarmPanel';
+import NotificationToast from './components/NotificationToast';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const WS_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:8000/ws';
@@ -23,7 +28,11 @@ function App() {
   const [connected, setConnected] = useState(false);
   const [response, setResponse] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [commandHistory, setCommandHistory] = useState([]);
+  const [voiceMuted, setVoiceMuted] = useState(false);
+  const [showMusic, setShowMusic] = useState(false);
+  const [showTV, setShowTV] = useState(false);
+  const [showAlarms, setShowAlarms] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const wsRef = useRef(null);
 
   const addLog = useCallback((type, message, agent = '') => {
@@ -34,7 +43,7 @@ function App() {
     };
     setLogs(prev => [entry, ...prev].slice(0, 200));
 
-    if (agent) {
+    if (agent && agent !== 'user') {
       setAgents(prev => ({
         ...prev,
         [agent]: {
@@ -54,6 +63,15 @@ function App() {
 
   const closeTerminal = useCallback((agentName) => {
     setActiveTerminals(prev => prev.filter(a => a !== agentName));
+  }, []);
+
+  const addNotification = useCallback((type, message) => {
+    const n = { id: Date.now() + Math.random(), type, message };
+    setNotifications(prev => [n, ...prev].slice(0, 10));
+  }, []);
+
+  const dismissNotification = useCallback((id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
 
   useEffect(() => {
@@ -89,8 +107,12 @@ function App() {
               }));
             }, 5000);
             setTimeout(() => closeTerminal(data.agent), 8000);
+          } else if (data.type === 'reminder_due') {
+            addNotification('reminder_due', data.message);
+          } else if (data.type === 'alarm_triggered') {
+            addNotification('alarm_triggered', data.message);
           }
-        } catch (e) { /* ignore parse errors */ }
+        } catch { /* ignore parse errors */ }
       };
 
       ws.onclose = () => {
@@ -104,19 +126,21 @@ function App() {
 
     connectWS();
     return () => { if (wsRef.current) wsRef.current.close(); };
-  }, [addLog, openTerminal, closeTerminal]);
+  }, [addLog, openTerminal, closeTerminal, addNotification]);
 
   useEffect(() => {
     fetch(`${API_URL}/system/status`)
       .then(r => r.json())
-      .then(setSystemStatus)
+      .then(data => {
+        setSystemStatus(data);
+        if (data.voice_muted !== undefined) setVoiceMuted(data.voice_muted);
+      })
       .catch(() => {});
   }, []);
 
   const sendCommand = async (command) => {
     setProcessing(true);
     setResponse('');
-    setCommandHistory(prev => [command, ...prev].slice(0, 20));
     addLog('command', command, 'user');
 
     try {
@@ -143,6 +167,14 @@ function App() {
     }
   };
 
+  const toggleVoiceMute = async () => {
+    try {
+      const res = await fetch(`${API_URL}/voice/toggle-mute`, { method: 'POST' });
+      const data = await res.json();
+      setVoiceMuted(data.muted);
+    } catch { /* ignore */ }
+  };
+
   return (
     <div className="jarvis-cinematic">
       <div className="grid-overlay" />
@@ -164,6 +196,9 @@ function App() {
         ))}
       </div>
 
+      {/* Notifications */}
+      <NotificationToast notifications={notifications} onDismiss={dismissNotification} />
+
       {/* Header */}
       <header className="hud-header">
         <div className="header-left">
@@ -174,9 +209,18 @@ function App() {
           </div>
         </div>
         <div className="header-center">
+          <WeatherWidget />
           <SystemArc status={systemStatus} connected={connected} />
         </div>
         <div className="header-right">
+          <button
+            className={`voice-mute-btn ${voiceMuted ? 'muted' : ''}`}
+            onClick={toggleVoiceMute}
+            title={voiceMuted ? 'Voice muted' : 'Voice enabled'}
+          >
+            <span className="mute-icon">{voiceMuted ? '\u{1F507}' : '\u{1F50A}'}</span>
+            <span className="mute-label">{voiceMuted ? 'MUTED' : 'VOICE'}</span>
+          </button>
           <div className={`neural-link ${connected ? 'active' : ''}`}>
             <div className="link-pulse" />
             <span>{connected ? 'NEURAL LINK ACTIVE' : 'LINK OFFLINE'}</span>
@@ -186,35 +230,62 @@ function App() {
 
       {/* Agent selector bar */}
       <div className="agent-bar">
-        {Object.entries(agents).map(([name, info]) => (
+        <div className="agent-tabs-scroll">
+          {Object.entries(agents).map(([name, info]) => (
+            <button
+              key={name}
+              className={`agent-tab ${info.status} ${activeTerminals.includes(name) ? 'open' : ''}`}
+              onClick={() => toggleTerminal(name)}
+            >
+              <span className="tab-indicator" />
+              <span className="tab-name">{name.toUpperCase()}</span>
+              <span className={`tab-status ${info.status}`}>
+                {info.status === 'active' ? 'RUNNING' : info.status === 'completed' ? 'DONE' : 'STANDBY'}
+              </span>
+            </button>
+          ))}
+
+          {/* Feature tabs */}
           <button
-            key={name}
-            className={`agent-tab ${info.status} ${activeTerminals.includes(name) ? 'open' : ''}`}
-            onClick={() => toggleTerminal(name)}
+            className={`agent-tab feature-tab ${showMusic ? 'open' : ''}`}
+            onClick={() => setShowMusic(!showMusic)}
           >
-            <span className="tab-indicator" />
-            <span className="tab-name">{name.toUpperCase()}</span>
-            <span className={`tab-status ${info.status}`}>
-              {info.status === 'active' ? 'RUNNING' : info.status === 'completed' ? 'DONE' : 'STANDBY'}
-            </span>
+            <span className="tab-indicator" style={{ background: '#ff6b9d' }} />
+            <span className="tab-name">MUSIC</span>
           </button>
-        ))}
+          <button
+            className={`agent-tab feature-tab ${showTV ? 'open' : ''}`}
+            onClick={() => setShowTV(!showTV)}
+          >
+            <span className="tab-indicator" style={{ background: '#ffaa00' }} />
+            <span className="tab-name">TV REMOTE</span>
+          </button>
+          <button
+            className={`agent-tab feature-tab ${showAlarms ? 'open' : ''}`}
+            onClick={() => setShowAlarms(!showAlarms)}
+          >
+            <span className="tab-indicator" style={{ background: '#00ff88' }} />
+            <span className="tab-name">ALARMS</span>
+          </button>
+        </div>
       </div>
 
       {/* Main workspace */}
       <div className="workspace">
         {/* Floating agent terminals */}
         <div className="terminal-layer">
-          {activeTerminals.map((agentName, index) => (
+          {activeTerminals.map((agentName) => (
             <AgentTerminal
               key={agentName}
               name={agentName}
               info={agents[agentName]}
-              index={index}
-              total={activeTerminals.length}
               onClose={() => closeTerminal(agentName)}
             />
           ))}
+
+          {showMusic && <MusicPlayer onClose={() => setShowMusic(false)} />}
+          {showTV && <TVRemote onClose={() => setShowTV(false)} />}
+          {showAlarms && <AlarmPanel onClose={() => setShowAlarms(false)} />}
         </div>
 
         {/* Central response area */}

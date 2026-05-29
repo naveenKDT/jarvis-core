@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Header, HTTPException, WebSocket, WebSocketDisconnect
 
 from app.brain.orchestrator import Orchestrator
@@ -12,12 +13,16 @@ from app.core.models import (
     ReminderCreate,
 )
 from app.memory import long_term
+from app.services import weather as weather_service
+from app.services import youtube_music as music_service
 from app.websocket.manager import ws_manager
 
 router = APIRouter()
 
 orchestrator = Orchestrator()
 task_manager = TaskManager()
+
+_voice_muted = False
 
 
 def verify_api_key(authorization: str = Header(default="")) -> None:
@@ -191,6 +196,119 @@ async def discover_tv(_: None = Depends(verify_api_key)):
     return {"devices": devices}
 
 
+@router.post("/device/tv/action/{action}")
+async def tv_action(action: str, _: None = Depends(verify_api_key)):
+    tv = orchestrator.agents["device"].tv
+    result = tv.execute(action)
+    return result
+
+
+# ── Music ────────────────────────────────────────────────
+
+class MusicSearchRequest(BaseModel):
+    query: str
+
+
+class MusicPlayRequest(BaseModel):
+    video_id: str
+    title: str = ""
+
+
+@router.post("/music/search")
+async def music_search(req: MusicSearchRequest, _: None = Depends(verify_api_key)):
+    results = music_service.search_youtube_list(req.query)
+    return {"results": results}
+
+
+@router.post("/music/play")
+async def music_play(req: MusicPlayRequest, _: None = Depends(verify_api_key)):
+    result = music_service.play_track(req.video_id, req.title)
+    return result
+
+
+@router.post("/music/stop")
+async def music_stop(_: None = Depends(verify_api_key)):
+    return music_service.stop_music()
+
+
+@router.post("/music/pause")
+async def music_pause(_: None = Depends(verify_api_key)):
+    return music_service.pause_music()
+
+
+@router.post("/music/resume")
+async def music_resume(_: None = Depends(verify_api_key)):
+    return music_service.resume_music()
+
+
+@router.get("/music/now-playing")
+async def music_now_playing(_: None = Depends(verify_api_key)):
+    track = music_service.get_now_playing()
+    return {"track": track}
+
+
+# ── Alarms ───────────────────────────────────────────────
+
+class AlarmCreate(BaseModel):
+    label: str = "Alarm"
+    time: str
+    repeat_days: str = ""
+
+
+@router.post("/alarms")
+async def create_alarm(alarm: AlarmCreate, _: None = Depends(verify_api_key)):
+    alarm_id = long_term.create_alarm(
+        label=alarm.label,
+        time=alarm.time,
+        repeat_days=alarm.repeat_days,
+    )
+    return {"id": alarm_id, "message": "Alarm created"}
+
+
+@router.get("/alarms")
+async def list_alarms(_: None = Depends(verify_api_key)):
+    return {"alarms": long_term.get_alarms(enabled_only=False)}
+
+
+@router.delete("/alarms/{alarm_id}")
+async def delete_alarm(alarm_id: int, _: None = Depends(verify_api_key)):
+    long_term.delete_alarm(alarm_id)
+    return {"message": f"Alarm {alarm_id} deleted"}
+
+
+@router.post("/alarms/{alarm_id}/toggle")
+async def toggle_alarm(alarm_id: int, enabled: bool = True, _: None = Depends(verify_api_key)):
+    long_term.toggle_alarm(alarm_id, enabled)
+    return {"message": f"Alarm {alarm_id} {'enabled' if enabled else 'disabled'}"}
+
+
+# ── Weather ──────────────────────────────────────────────
+
+@router.get("/weather")
+async def get_weather(city: str | None = None, _: None = Depends(verify_api_key)):
+    return weather_service.get_weather(city)
+
+
+@router.get("/weather/forecast")
+async def get_forecast(city: str | None = None, _: None = Depends(verify_api_key)):
+    return {"forecast": weather_service.get_forecast(city)}
+
+
+# ── Voice Toggle ─────────────────────────────────────────
+
+@router.get("/voice/status")
+async def voice_status():
+    global _voice_muted
+    return {"muted": _voice_muted, "voice_enabled": settings.VOICE_ENABLED}
+
+
+@router.post("/voice/toggle-mute")
+async def voice_toggle_mute():
+    global _voice_muted
+    _voice_muted = not _voice_muted
+    return {"muted": _voice_muted}
+
+
 # ── Tasks ────────────────────────────────────────────────
 
 @router.get("/tasks")
@@ -222,8 +340,10 @@ async def system_status(_: None = Depends(verify_api_key)):
             for name in orchestrator.agents
         },
         "voice_enabled": settings.VOICE_ENABLED,
+        "voice_muted": _voice_muted,
         "llm_model": settings.OLLAMA_MODEL,
         "llm_url": settings.OLLAMA_BASE_URL,
+        "music_playing": music_service.get_now_playing(),
     }
 
 

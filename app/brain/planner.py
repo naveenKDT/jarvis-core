@@ -38,7 +38,7 @@ Example:
 
         try:
             return json.loads(response)
-        except:
+        except (json.JSONDecodeError, ValueError):
             return {
                 "agent": "unknown"
             }
